@@ -59,6 +59,8 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	            var newPath = window.location.pathname + "?" + "view=" + newValue + "&day=" + this.defaultDate;
 	            window.history.pushState(null, null, newPath);
 
+                // TODO:Close popup
+
 	            jQuery(this.container).fullCalendar('changeView', newValue);
 	        },
 	        defaultDateChanged: function (oldValue, newValue) {
@@ -91,6 +93,13 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 
 	            var calItem = result[0];
 
+                // Buggworkaround, if Item is a allday it will not be placed in the allday section
+	            if (calItem.allDay == true) {
+	                jQuery(this.container).fullCalendar('refetchEvents');
+	                return;
+	            }
+
+
 	            for (var i = 0 ; i < this.events.length ; i++) {
 
 	                if (this.events[i].ID == calItem.id) {
@@ -105,17 +114,16 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	                    break;
 	                }
 	            }
+
 	        },
 	        created: function () {
 
-	            console.log("created");
 
 	            this.container = document.createElement("div");
 	            this.appendChild(this.container);
 	        },
 	        ready: function () {
 
-	            console.log("Ready");
 	            var self = this;
 
 	            var observer = new ArrayObserver(this.events);
@@ -128,7 +136,6 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	        },
 	        domReady: function () {
 
-	            console.log("domReady");
 
 	            this.isDomReady = true;
 	            var self = this;
@@ -166,10 +173,28 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	                editable: self.editable,
 	                eventLimit: true, // allow "more" link when too many events
 	                dayClick: function (date, jsEvent, view) {
-	                    // A Day has been clicked
 
-	                    self.dayClicked = null; // Trigger a change if the previous date is the same as the clicked on
-	                    self.dayClicked = date.toJSON();
+	                    var hasTime = date.hasTime();
+	                    var d = new Date();
+
+
+	                    if (self.view == "month") {
+	                        // Goto day
+
+	                        //self.dayClicked++; // Trigger a change if the previous date is the same as the clicked on
+	                        self.dayClicked = date.toJSON() + ";" + d.getTime(); // add number so the patch is sent
+	                        return;
+	                    }
+
+
+                        
+	                    if (hasTime == false) { // || self.view == 'agendaWeek'&& (self.view == 'agendaDay')
+	                        // Create allday event
+	                        // The data is in local mode (NOT in UTC mode).
+	                        date.local();
+
+	                        self.selection = date.toJSON() + ";" + "" + ";" + d.getTime(); // add number so the patch is sent
+                        }
 	                },
 	                select: function (start, end, jsEvent, view) {
 
@@ -184,7 +209,7 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	                eventClick: function (calEvent, jsEvent, view) {
 
 	                    // Trigger click
-	                    calEvent._source.Click$ = null
+	                    calEvent._source.Click$++;
 
 	                    self.setPopupPosition(jsEvent);
 	                },
@@ -218,7 +243,10 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	                        //set start(val) { this._source.Start = val; },
 
 	                        get title() { return this._source.Name; },
-
+	                        get rendering() {
+	                            return ( this._source.Background  == true ) ? "background" : "";
+	                        },
+	                        get backgroundColor() { return this._source.Color; },
 	                        get color() { return this._source.Color; },
 	                        get editable() { return this._source.Editable; },
 	                        get allDay() {
@@ -231,11 +259,12 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	                        },
 	                    };
 
+
 	                    // Transform Server Reservation object to full calendar event object
 	                    return calEvent;
 	                },
 	                events: function (start, end, timezone, callback) {
-	                    console.log("Full-Calendar, get data requested");
+	                    //console.log("Full-Calendar, get data requested");
 	                    callback(self.events);
 	                }
 	            });
@@ -246,11 +275,37 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	            if (popupElement != null) {
 	                // TODO: Move popup element to position
 
-	                var popupHeight = 200; // TODO:popupElement.clientHeight
+	                var popupHeight = 240; // TODO:popupElement.clientHeight
+	                var popupWidth = 500; // TODO:popupElement.clientHeight
+
+	                var calendarRect = this.getBoundingClientRect();
+
+	                //popupElement.style.zIndex = '2147483647';
 
 	                var rect = jsEvent.toElement.getBoundingClientRect();
-	                popupElement.style.left = jsEvent.toElement.getBoundingClientRect().left + 20 + "px";
-	                popupElement.style.top = (rect.top - popupHeight) + "px";
+	                var popupRect = popupElement.getBoundingClientRect();
+
+	                var mouseXOffset = jsEvent.clientX - rect.left;
+
+	                var leftPos = jsEvent.toElement.getBoundingClientRect().left + 0;
+	                leftPos = leftPos + mouseXOffset - (popupWidth / 2);
+
+	                if (leftPos < calendarRect.left) {
+	                    leftPos = calendarRect.left;
+	                }
+
+	                if ((leftPos + popupWidth) > calendarRect.right) {
+	                    leftPos = calendarRect.right - popupWidth;
+	                }
+
+	                var topPos = (rect.top - popupHeight);
+	                if (topPos < calendarRect.top) {
+	                    topPos = calendarRect.top;
+	                }
+
+	                popupElement.style.left = leftPos + "px";
+	                popupElement.style.top = topPos + "px";
+
 	            }
 	            else {
 	                console.log("POPUP ELEMENT NOT FOUND");
