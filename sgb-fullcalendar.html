@@ -1,5 +1,5 @@
 <!--
-Copyright 2014 Smörgåsbord-Development. All rights reserved.
+Copyright 2015 Smörgåsbord-Development. All rights reserved.
 -->
 <!--
 /**
@@ -16,296 +16,303 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 <link rel='stylesheet' href='fullcalendar/fullcalendar.css' />
 <link href='fullcalendar/fullcalendar.print.css' rel='stylesheet' media='print' />
 
-<polymer-element name="sgb-fullcalendar" attributes="userChangedTrigger updateTrigger updateItem selection selectionStart selectionEnd events defaultDate defaultView headerLeft headerCenter headerRight view dayClicked editable">
-
+<dom-module id="sgb-fullcalendar">
 
 	<script>
 
 	    "use strict";
 
-	    Polymer('sgb-fullcalendar', {
-	        url: "",
-	        selection: "",
-	        selectionStart: "",
-	        selectionEnd: "",
-	        eventClickedID: "",
-	        events: [],
-	        defaultView: "agendaDay",
-	        defaultDate: null,
-	        headerLeft: "",
-	        headerCenter: "",
-	        headerRight: "",
-	        view: null,
-	        editable: false,
-	        eventChanged: "",
-	        userChangedTrigger : false,
-	        updateTrigger: 0,
-	        updateItem: "",
-	        isDomReady: false,
-	        userChangedTriggerChanged: function (oldValue, newValue) {
-	            // User signed in/out/switched
-	            if (this.isDomReady == false) return;
-
-	            // Refresh all
-	            jQuery(this.container).fullCalendar('refetchEvents');
+	    Polymer({
+	        is: "sgb-fullcalendar",
+	        hostAttributes: {
 
 	        },
-	        viewChanged: function (oldValue, newValue) {
-
-	            if (this.isDomReady == false) return;
-
-	            // TODO: Only modify the view parameter
-	            // window.location.search
-	            var newPath = window.location.pathname + "?" + "view=" + newValue + "&day=" + this.defaultDate;
-	            window.history.pushState(null, null, newPath);
-
-                // TODO:Close popup
-
-	            jQuery(this.container).fullCalendar('changeView', newValue);
-	        },
-	        defaultDateChanged: function (oldValue, newValue) {
-
-	            if (this.isDomReady == false) return;
-
-	            var newPath = window.location.pathname + "?" + "view=" + this.view + "&day=" + newValue;
-	            window.history.pushState(null, null, newPath);
-
-	            jQuery(this.container).fullCalendar('gotoDate', newValue);
-	        },
-	        updateTriggerChanged: function (oldValue, newValue) {
-
-	            if (this.isDomReady == false) return;
-
-	            if (this.updateItem == "" || this.updateItem == undefined) {
-	                // No Item, refresh all
-	                jQuery(this.container).fullCalendar('refetchEvents');
-	                return;
-	            }
-
-                // Get event item
-	            var result = jQuery(this.container).fullCalendar('clientEvents', [this.updateItem]);
-
-	            if (result.length == 0) {
-                    // Item not found, refresh all
-	                jQuery(this.container).fullCalendar('refetchEvents');
-	                return;
-	            }
-
-	            var calItem = result[0];
-
-                // Buggworkaround, if Item is a allday it will not be placed in the allday section
-	            if (calItem.allDay == true) {
-	                jQuery(this.container).fullCalendar('refetchEvents');
-	                return;
-	            }
-
-
-	            for (var i = 0 ; i < this.events.length ; i++) {
-
-	                if (this.events[i].ID == calItem.id) {
-	                    // Update item
-	                    calItem.title = this.events[i].Name;
-	                    calItem.start = this.events[i].BeginTime;
-	                    calItem.end = this.events[i].EndTime;
-	                    calItem.color = this.events[i].Color;
-	                    calItem.editable = this.events[i].Editable;
-	                    calItem.allDay = this.events[i].FullDay;
-	                    jQuery(this.container).fullCalendar('updateEvent', calItem);
-	                    break;
+	        properties: {
+	            showDate: {
+	                type: String,
+	                value: null,
+	                notify: true,
+	                observer: 'showDateChanged'
+	            },
+	            refreshTrigger: {
+	                type: Boolean,
+	                value: false,
+	                observer: 'refreshTriggerChanged'
+	            },
+	            eventSelection: { type: String, value: "", notify: true },
+	            selectionStart: "",
+	            selectionEnd: "",
+	            eventItems: {
+	                type: Array,
+	                value: function () {
+	                    return [];
 	                }
+	            },
+	            headerLeft: { type: String, value: "", notify: true },
+	            headerCenter: { type: String, value: "", notify: true },
+	            headerRight: { type: String, value: "", notify: true },
+	            dayClicked: { type: String, value: "", notify: true },
+	            showView: {
+	                type: String,
+	                value: "agendaDay",
+	                notify: true,
+	                observer: 'showViewChanged'
+	            },
+	            fetchStart: { type: String, value: null, notify: true },
+	            fetchEnd: { type: String, value: null, notify: true },
+	            isEditable: { type: Boolean, value: true },
+	            isDefered: { type: Boolean, value: false },
+	            calendarCallback: { type: Object, value: null }
+	        },
+	        observers: [
+	            'eventItemsChanged(eventItems.*)'
+	        ],
+	        updateCalendarCallback: function () {
+
+	            jQuery(this.container).fullCalendar('refetchEvents');
+	            this.isDefered = false;
+	        },
+	        eventItemsChanged: function (changeRecord) {
+
+	            var self = this;
+	            if (this.isDefered == false) {
+	                this.isDefered = true;
+	                setTimeout(function () {
+	                    self.updateCalendarCallback();
+	                }, 1);
+	            }
+	        },
+	        url: "",
+	        eventClickedID: "",
+	        eventChanged: "",
+	        isDomReady: false,
+	        getEventObj: function (id) {
+	            var result = jQuery(this.container).fullCalendar('clientEvents', id);
+
+	            if (result.length > 0) {
+	                return result[0];
 	            }
 
+	            return null;
 	        },
 	        created: function () {
-
 
 	            this.container = document.createElement("div");
 	            this.appendChild(this.container);
 	        },
-	        ready: function () {
+	        attached: function () {
 
-	            var self = this;
+	            this.async(function () {
+	                this.isDomReady = true;
+	                var self = this;
 
-	            var observer = new ArrayObserver(this.events);
-	            observer.open(function (splices) {
-	                // respond to changes to the elements of arr.
-	                jQuery(self.container).fullCalendar('unselect');
-	                jQuery(self.container).fullCalendar('refetchEvents');
-	            });
+	                var newPath = window.location.pathname + "?" + "view=" + this.showView + "&day=" + this.showDate;
+	                window.history.replaceState(null, null, newPath);
 
-	        },
-	        domReady: function () {
+	                jQuery(this.container).fullCalendar({
+	                    timezone: "local",
+	                    firstDay: 1,
+	                    allDaySlot: true,
+	                    weekNumbers: false,
+	                    defaultView: self.showView,
+	                    lang: navigator.language || navigator.userLanguage, // TODO: Language?
+	                    unselectAuto: false,
+	                    header: {
+	                        left: self.headerLeft,
+	                        center: self.headerCenter,
+	                        right: self.headerRight
+	                    },
+	                    defaultDate: self.showDate,
+	                    editable: self.isEditable,
+	                    selectable: self.isEditable,
+	                    selectHelper: false,
+	                    viewRender: function (view, element) {
 
+	                        var bUpdateBrowserHistory = false;;
+	                        var dateStr = jQuery(self.container).fullCalendar('getDate').format();
+	                        if (self.showDate != dateStr) {
+	                            self.showDate = dateStr;
+	                            bUpdateBrowserHistory = true;
+	                        }
 
-	            this.isDomReady = true;
-	            var self = this;
+	                        if (self.showView != view.name) {
+	                            self.showView = view.name;
+	                            bUpdateBrowserHistory = true;
+	                        }
 
-	            jQuery(this.container).fullCalendar({
-	                timezone: "local",
-	                firstDay: 1,
-	                allDaySlot: true,
-	                //  lazyFetching: false,
-	                weekNumbers: false,
-	                defaultView: self.defaultView,
-	                lang: 'sv',
-	                unselectAuto: false,
-	                header: {
-	                    left: self.headerLeft,
-	                    center: self.headerCenter,
-	                    right: self.headerRight
-	                },
-	                defaultDate: self.defaultDate,
-	                selectable: true,
-	                selectHelper: false,
-	                viewRender: function (view, element) {
+	                        if (bUpdateBrowserHistory) {
+	                            var newPath = window.location.pathname + "?" + "view=" + view.name + "&day=" + self.showDate;
+	                            window.history.pushState(null, null, newPath);
+	                        }
 
-	                    var date = jQuery(self.container).fullCalendar('getDate');
-	                    self.defaultDate = date.format();
+	                        if (view.name == 'month') {
+	                            jQuery(self.container).fullCalendar('option', 'aspectRatio', 1.35);
+	                        }
+	                        else {
+	                            jQuery(self.container).fullCalendar('option', 'aspectRatio', 1.0);
+	                        }
+	                    },
+	                    eventLimit: true, // allow "more" link when too many events
+	                    dayClick: function (date, jsEvent, view) {
 
-	                    self.view = view.name;
-	                    if (self.view == 'month') {
-	                        jQuery(self.container).fullCalendar('option', 'aspectRatio', 1.35);
-	                    }
-	                    else {
-	                        jQuery(self.container).fullCalendar('option', 'aspectRatio', 1.0);
-	                    }
-	                },
-	                editable: self.editable,
-	                eventLimit: true, // allow "more" link when too many events
-	                dayClick: function (date, jsEvent, view) {
-
-	                    var hasTime = date.hasTime();
-	                    var d = new Date();
-
-
-	                    if (self.view == "month") {
-	                        // Goto day
-
-	                        //self.dayClicked++; // Trigger a change if the previous date is the same as the clicked on
-	                        self.dayClicked = date.toJSON() + ";" + d.getTime(); // add number so the patch is sent
-	                        return;
-	                    }
-
-
-                        
-	                    if (hasTime == false) { // || self.view == 'agendaWeek'&& (self.view == 'agendaDay')
-	                        // Create allday event
-	                        // The data is in local mode (NOT in UTC mode).
-	                        date.local();
-
-	                        self.selection = date.toJSON() + ";" + "" + ";" + d.getTime(); // add number so the patch is sent
-                        }
-	                },
-	                select: function (start, end, jsEvent, view) {
-
-	                    if (start.hasTime() && end.hasTime()) {
+	                        var hasTime = date.hasTime();
 	                        var d = new Date();
-	                        self.selection = start.toJSON() + ";" + end.toJSON() + ";" + d.getTime(); // add number so the patch is sent
-	                        //jQuery(self.container).fullCalendar('unselect');
-	                    }
 
-	                    self.setPopupPosition(jsEvent);
-	                },
-	                eventClick: function (calEvent, jsEvent, view) {
+	                        if (self.showView == "month") {
+	                            // Goto day
+	                            self.dayClicked = date.toJSON() + ";" + d.getTime(); // add number so the patch is sent
 
-	                    // Trigger click
-	                    calEvent._source.Click$++;
+	                            // Switch view
+	                            self.showView = "agendaDay";
 
-	                    self.setPopupPosition(jsEvent);
-	                },
+	                            // Select date
+	                            self.showDate = date.format();
 
-	                eventResize: function (event, delta, revertFunc, jsEvent, ui, view) {
+	                            var newPath = window.location.pathname + "?" + "view=" + self.showView + "&day=" + self.showDate;
+	                            window.history.pushState(null, null, newPath);
+	                            return;
+	                        }
 
-	                    if (event.start.hasTime() && event.end.hasTime()) {
-	                        //	                        self.eventChanged = event.id + ";" + event.start.toJSON() + ";" + event.end.toJSON();
+	                        if (hasTime == false) {
+	                            // Create allday event
+	                            // The date is in local mode (NOT in UTC mode).
+	                            date.local();
+	                            self.eventSelection = date.toJSON() + ";" + "" + ";" + d.getTime(); // add number so the patch is sent
+	                        }
+	                    },
+	                    select: function (start, end, jsEvent, view) {
+
+	                        if (start.hasTime() && end.hasTime()) {
+	                            var d = new Date();
+	                            self.eventSelection = start.toJSON() + ";" + end.toJSON() + ";" + d.getTime(); // add number so the patch is sent
+	                            //jQuery(self.container).fullCalendar('unselect');
+	                        }
+	                        self.setPopupPosition(jsEvent);
+	                    },
+	                    eventClick: function (calEvent, jsEvent, view) {
+
+	                        // Trigger click
+	                        calEvent._source.Click$++;
+
+	                        self.setPopupPosition(jsEvent);
+	                    },
+	                    eventResize: function (event, delta, revertFunc, jsEvent, ui, view) {
+
+	                        if (event.start.hasTime() && event.end.hasTime()) {
+	                            event._source.Moved$ = event.start.toJSON() + ";" + event.end.toJSON();
+	                        }
+	                    },
+	                    eventDrop: function (event, delta, revertFunc, jsEvent, ui, view) {
+
+	                        //	                    if (event.start.hasTime() && event.end.hasTime()) {
 	                        event._source.Moved$ = event.start.toJSON() + ";" + event.end.toJSON();
+	                        //                      }
+	                    },
+	                    eventDataTransform: function (eventData) {
+
+	                        // Transform Server Reservation object to full calendar event object
+
+	                        return {
+	                            _source: eventData,
+
+	                            get id() { return this._source.ID; },
+	                            get end() { return this._source.EndTime; },
+	                            get start() { return this._source.BeginTime; },
+	                            get title() { return this._source.Name; },
+	                            get rendering() {
+	                                return (this._source.Background == true) ? "background" : "";
+	                            },
+	                            get backgroundColor() { return this._source.Color; },
+	                            get color() { return this._source.Color; },
+	                            get editable() { return this._source.Editable; },
+	                            get allDay() {
+
+	                                if (this._source.EndTime == "0001-01-01 00:00:00Z") {
+	                                    return true;
+	                                }
+
+	                                return this._source.FullDay;
+	                            },
+	                        };
+	                    },
+	                    events: function (start, end, timezone, callback) {
+                            // Start and End is in UTC
+                            // Convert start and end to local
+	                        start.local();
+	                        var startJson = start.toJSON();
+	                        if (self.fetchStart != startJson) {
+	                            self.fetchStart = startJson;
+	                        }
+
+	                        end.local();
+	                        var endJson = end.toJSON();
+	                        if (self.fetchEnd != endJson) {
+	                            self.fetchEnd = endJson;
+	                        }
+	                        callback(self.eventItems);
 	                    }
-	                },
-	                eventDrop: function (event, delta, revertFunc, jsEvent, ui, view) {
-
-	                    if (event.start.hasTime() && event.end.hasTime()) {
-	                        //self.eventChanged = event.id + ";" + event.start.toJSON() + ";" + event.end.toJSON();
-	                        event._source.Moved$ = event.start.toJSON() + ";" + event.end.toJSON();
-	                    }
-	                },
-	                eventDataTransform: function (eventData) {
-
-	                    // http://www.html5rocks.com/en/tutorials/es7/observe/
-	                    var calEvent = {
-	                        _source: eventData,
-
-	                        get id() { return this._source.ID; },
-
-	                        get end() { return this._source.EndTime; },
-	                        //set end(val) { this._source.End = val; },
-
-	                        get start() { return this._source.BeginTime; },
-	                        //set start(val) { this._source.Start = val; },
-
-	                        get title() { return this._source.Name; },
-	                        get rendering() {
-	                            return ( this._source.Background  == true ) ? "background" : "";
-	                        },
-	                        get backgroundColor() { return this._source.Color; },
-	                        get color() { return this._source.Color; },
-	                        get editable() { return this._source.Editable; },
-	                        get allDay() {
-
-	                            if (this._source.EndTime == "0001-01-01 00:00:00Z") {
-	                                return true;
-	                            }
-
-	                            return this._source.FullDay;
-	                        },
-	                    };
-
-
-	                    // Transform Server Reservation object to full calendar event object
-	                    return calEvent;
-	                },
-	                events: function (start, end, timezone, callback) {
-	                    //console.log("Full-Calendar, get data requested");
-	                    callback(self.events);
-	                }
+	                });
 	            });
+	        },
+	        refreshTriggerChanged: function (newValue, oldValue) {
+
+	            if (this.isDomReady == false) return;
+	            jQuery(this.container).fullCalendar('refetchEvents');
+	        },
+	        showViewChanged: function (newValue, oldValue) {
+
+	            if (this.isDomReady == false) return;
+
+	            // TODO:Close popup
+	            jQuery(this.container).fullCalendar('changeView', newValue);
+	        },
+	        showDateChanged: function (newValue, oldValue) {
+
+	            if (this.isDomReady == false) return;
+
+	            jQuery(this.container).fullCalendar('gotoDate', newValue);
 	        },
 	        setPopupPosition: function (jsEvent) {
 
 	            var popupElement = document.getElementById("popup");
 	            if (popupElement != null) {
-	                // TODO: Move popup element to position
 
-	                var popupHeight = 240; // TODO:popupElement.clientHeight
-	                var popupWidth = 500; // TODO:popupElement.clientHeight
+	                var borderMargin = 20;
 
-	                var calendarRect = this.getBoundingClientRect();
+	                var popupWidth = parseInt(window.getComputedStyle(popup).width, 10);
+	                var popupHeight = parseInt(window.getComputedStyle(popup).height, 10);
 
-	                //popupElement.style.zIndex = '2147483647';
+	                var windowWidth = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+	                var windowHeight = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
 
-	                var rect = jsEvent.toElement.getBoundingClientRect();
-	                var popupRect = popupElement.getBoundingClientRect();
-
-	                var mouseXOffset = jsEvent.clientX - rect.left;
-
-	                var leftPos = jsEvent.toElement.getBoundingClientRect().left + 0;
-	                leftPos = leftPos + mouseXOffset - (popupWidth / 2);
-
-	                if (leftPos < calendarRect.left) {
-	                    leftPos = calendarRect.left;
+	                if (isNaN(popupHeight)) {
+	                    popupHeight = windowHeight;
+	                    console.warn("Popup window has no height, set the height on the popup element style");
 	                }
 
-	                if ((leftPos + popupWidth) > calendarRect.right) {
-	                    leftPos = calendarRect.right - popupWidth;
-	                }
+	                if (isNaN(popupWidth)) {
+	                    popupWidth = windowWidth;
+	                    console.warn("Popup window has no width, set the width on the popup element style");
+                    }
 
-	                var topPos = (rect.top - popupHeight);
-	                if (topPos < calendarRect.top) {
-	                    topPos = calendarRect.top;
+
+	                var leftPos = jsEvent.clientX - (popupWidth / 2);
+	                if ((leftPos + popupWidth + borderMargin) > windowWidth) {
+	                    leftPos = windowWidth - popupWidth - borderMargin;
+	                }
+	                if (leftPos < borderMargin) {
+	                    leftPos = borderMargin;
+	                }
+	                var topPos = jsEvent.clientY - popupHeight;
+	                if ((topPos + popupHeight + borderMargin) > windowHeight) {
+	                    topPos = windowHeight - popupHeight - borderMargin;
+	                }
+	                if (topPos < borderMargin) {
+	                    topPos = borderMargin;
 	                }
 
 	                popupElement.style.left = leftPos + "px";
 	                popupElement.style.top = topPos + "px";
-
 	            }
 	            else {
 	                console.log("POPUP ELEMENT NOT FOUND");
@@ -335,4 +342,4 @@ Copyright 2014 Smörgåsbord-Development. All rights reserved.
 	        }
 	    });
 	</script>
-</polymer-element>
+</dom-module>
